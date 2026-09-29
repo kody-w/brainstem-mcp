@@ -1,5 +1,10 @@
 name: test
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 9 * * 1"   # weekly: catch a grail change that breaks this userland
+  workflow_dispatch:
 jobs:
   test:
     strategy:
@@ -13,3 +18,27 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install "mcp>=2.0,<3" "requests>=2.31" pytest
       - run: python -m pytest -q
+
+  grail-contract:
+    # The grail is the kernel. Run the bridge against it unchanged, straight from the grail repo, read-only.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: kody-w/rapp-installer
+          path: grail
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -r grail/rapp_brainstem/requirements.txt "mcp>=2.0,<3" "requests>=2.31" pytest
+      - name: Start the unchanged grail kernel (signed out)
+        working-directory: grail/rapp_brainstem
+        run: |
+          echo "grail commit: $(git -C .. rev-parse HEAD), kernel $(cat VERSION)"
+          PORT=7071 nohup python brainstem.py > "$RUNNER_TEMP/kernel.log" 2>&1 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:7071/health && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/kernel.log"; exit 1
+      - run: python -m pytest -q tests/contract
+        env:
+          GRAIL_KERNEL_URL: http://127.0.0.1:7071
