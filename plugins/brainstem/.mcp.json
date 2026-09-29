@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "brainstem": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/launch.py"],
+      "env": { "BRAINSTEM_URL": "${BRAINSTEM_URL:-http://127.0.0.1:7071}" }
+    }
+  }
+}
