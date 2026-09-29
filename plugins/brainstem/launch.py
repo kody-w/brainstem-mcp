@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Start the Brainstem MCP bridge from its own small environment.
 
-    python3 launch.py           start the bridge over stdio (what Claude Code runs)
+    python3 launch.py           start the bridge over stdio (what Claude Code runs); needs setup first
     python3 launch.py --setup   build the environment if needed and report readiness as JSON
 
 Standard library only. The environment lives outside the plugin, in ~/.cache/brainstem-mcp
@@ -104,8 +104,10 @@ def setup() -> int:
 
 
 def serve() -> int:
+    # Building takes longer than a host waits for a server to start, so only setup builds.
     if not _env_ready():
-        _build_env(sys.stderr)
+        print("brainstem-mcp is not set up yet: run /brainstem:setup, then /reload-plugins.", file=sys.stderr)
+        return 1
     command = [str(_env_python()), str(HERE / "mcp_server.py"), *sys.argv[1:]]
     if os.name == "nt":
         return subprocess.call(command)

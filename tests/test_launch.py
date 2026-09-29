@@ -54,3 +54,10 @@ def test_failed_package_install_is_reported_not_raised(launch, capsys, monkeypat
 def test_unreachable_url_is_reported(launch, monkeypatch):
     monkeypatch.setattr(launch, "BRAINSTEM_URL", "http://127.0.0.1:1")
     assert launch._brainstem() == {"reachable": False, "url": "http://127.0.0.1:1"}
+
+
+def test_serve_never_builds_it_says_to_run_setup(launch, monkeypatch, capsys):
+    monkeypatch.setattr(launch, "_env_ready", lambda: False)
+    monkeypatch.setattr(launch, "_build_env", lambda log: pytest.fail("serve must not build"))
+    assert launch.serve() == 1
+    assert "/brainstem:setup" in capsys.readouterr().err
