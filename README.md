@@ -31,11 +31,12 @@ Claude to "set up the Brainstem".
 
 ## What you get
 
-Two tools Claude Code can call:
+Three tools Claude Code can call:
 
 | Tool | What it does |
 |---|---|
-| `chat` | Send the Brainstem a message; it picks its own agents. Pass back `session_id` to continue the same conversation. |
+| `chat` | Send the Brainstem a message; it picks its own agents. Pass back `session_id` to continue the same conversation. For work that may take minutes, pass `wait: false`. |
+| `job_status` | The answer to a `wait: false` chat, once it is done. |
 | `capabilities` | The Brainstem's status, version, model and loaded agents. |
 
 If the Brainstem is down or refuses a message, the call fails with a plain explanation.
@@ -46,7 +47,8 @@ If the Brainstem is down or refuses a message, the call fails with a plain expla
 |---|---|---|
 | `BRAINSTEM_URL` | `http://127.0.0.1:7071` | A Brainstem on another port |
 | `BRAINSTEM_SECRET` | none | A Brainstem in LAN mode |
-| `BRAINSTEM_MCP_TIMEOUT` | `240` | Seconds to wait for one answer |
+| `BRAINSTEM_MCP_TIMEOUT` | `240` | Seconds a waiting `chat` waits |
+| `BRAINSTEM_MCP_JOB_TIMEOUT` | `3600` | Seconds a `wait: false` chat may run |
 
 ## Other AIs
 

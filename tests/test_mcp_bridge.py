@@ -23,6 +23,8 @@ class Reply:
 def bridge(monkeypatch):
     module = importlib.import_module("mcp_server")
     module._histories.clear()
+    module._jobs.clear()
+    module._busy.clear()
     sent = []
 
     health = {"status": "ok", "version": "0.6.16", "model": "m", "agents": ["Twins"], "quarantined": [], "extra": 1}
@@ -91,3 +93,62 @@ def test_capabilities_failure_is_a_tool_error(bridge, monkeypatch):
 def test_capabilities_reports_only_health_facts(bridge):
     assert json.loads(bridge.capabilities()) == {
         "status": "ok", "version": "0.6.16", "model": "m", "agents": ["Twins"], "quarantined": []}
+
+
+def wait_for_job(bridge, session_id):
+    import time
+    for _ in range(200):
+        report = json.loads(bridge.job_status(session_id))
+        if report["status"] != "running":
+            return report
+        time.sleep(0.01)
+    raise AssertionError("background chat never finished")
+
+
+def test_background_chat_returns_at_once_and_job_status_has_the_answer(bridge):
+    started = json.loads(bridge.chat("long task", session_id="bg", wait=False))
+    assert started == {"status": "running", "session_id": "bg"}
+    report = wait_for_job(bridge, "bg")
+    assert report["status"] == "done" and report["result"]["response"] == "answer 1"
+    assert bridge._histories["bg"][-1] == {"role": "assistant", "content": "answer 1"}
+    assert "bg" not in bridge._busy
+
+
+def test_background_failure_is_recorded_in_plain_words(bridge, monkeypatch):
+    fail_with(bridge, monkeypatch, bridge.requests.ConnectionError("refused"))
+    bridge.chat("long task", session_id="bgf", wait=False)
+    report = wait_for_job(bridge, "bgf")
+    assert report["status"] == "error" and "not running at" in report["error"]
+    assert "bgf" not in bridge._histories and "bgf" not in bridge._busy
+
+
+def test_one_message_at_a_time_per_session(bridge, monkeypatch):
+    import threading
+    gate = threading.Event()
+    original = bridge.requests.request
+
+    def slow(*args, **kwargs):
+        gate.wait(5)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(bridge.requests, "request", slow)
+    bridge.chat("first", session_id="one", wait=False)
+    with pytest.raises(bridge.ToolError, match="still answering"):
+        bridge.chat("second", session_id="one")
+    json.loads(bridge.chat("elsewhere", session_id="two", wait=False))
+    gate.set()
+    assert wait_for_job(bridge, "one")["status"] == "done"
+    assert wait_for_job(bridge, "two")["status"] == "done"
+
+
+def test_job_status_for_an_unknown_session_is_a_tool_error(bridge):
+    with pytest.raises(bridge.ToolError, match="No background chat"):
+        bridge.job_status("never")
+
+
+def test_finished_jobs_are_bounded(bridge, monkeypatch):
+    monkeypatch.setattr(bridge, "FINISHED_JOBS_KEPT", 2)
+    for n in range(4):
+        bridge.chat("task", session_id=f"j{n}", wait=False)
+        wait_for_job(bridge, f"j{n}")
+    assert sorted(bridge._jobs) == ["j2", "j3"]
