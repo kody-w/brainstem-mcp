@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Start the Brainstem MCP bridge from its own small environment.
 
-    python3 launch.py           start the bridge over stdio (what Claude Code runs); needs setup first
+    python3 launch.py           start the bridge over stdio (what Claude Code runs); before setup it
+                                offers a single `setup` tool instead
     python3 launch.py --setup   build the environment if needed and report readiness as JSON
 
 Standard library only. The environment lives outside the plugin, in ~/.cache/brainstem-mcp
@@ -73,14 +74,13 @@ def _brainstem() -> dict:
             "agents": len(health.get("agents") or [])}
 
 
-def setup() -> int:
+def readiness() -> dict:
     report = {"ready": False, "python": sys.version.split()[0], "bridge": None, "brainstem": None,
               "actionsTaken": [], "nextSteps": []}
     if sys.version_info < MIN_PYTHON:
         report["bridge"] = f"needs Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+; this is {report['python']}"
         report["nextSteps"].append("Install Python 3.11 or newer (the Brainstem needs it too), then run setup again.")
-        print(json.dumps(report, indent=2))
-        return 1
+        return report
     if _env_ready():
         report["bridge"] = f"ready ({ENV})"
     else:
@@ -99,15 +99,63 @@ def setup() -> int:
     report["ready"] = report["bridge"].startswith("ready") and brainstem["reachable"] and brainstem["signedIn"]
     if report["ready"] and report["actionsTaken"]:
         report["nextSteps"].append("Run /reload-plugins so Claude Code starts the bridge.")
+    return report
+
+
+def setup() -> int:
+    report = readiness()
     print(json.dumps(report, indent=2))
     return 0 if report["ready"] else 1
 
 
+SETUP_TOOL = {
+    "name": "setup",
+    "description": ("The Brainstem bridge is not set up yet. Call this once: it prepares the bridge (about a "
+                    "minute) and checks the Brainstem is running and signed in. Then the user runs /reload-plugins."),
+    "inputSchema": {"type": "object", "properties": {}},
+}
+
+
+def setup_server() -> int:
+    """Before setup there is no `mcp` package, so answer MCP over stdio with the standard library and offer one
+    tool, `setup`. The host connects cleanly (no cached failure) and can finish setup itself."""
+    def send(message):
+        sys.stdout.write(json.dumps(message) + "\n")
+        sys.stdout.flush()
+
+    for line in sys.stdin:
+        try:
+            message = json.loads(line)
+        except ValueError:
+            continue
+        method, ident = message.get("method"), message.get("id")
+        if ident is None:
+            continue
+        if method == "initialize":
+            version = (message.get("params") or {}).get("protocolVersion") or "2025-06-18"
+            send({"jsonrpc": "2.0", "id": ident, "result": {
+                "protocolVersion": version, "capabilities": {"tools": {}},
+                "serverInfo": {"name": "ai-brainstem", "version": "setup"},
+                "instructions": "Not set up yet. Call `setup`, then ask the user to run /reload-plugins."}})
+        elif method == "ping":
+            send({"jsonrpc": "2.0", "id": ident, "result": {}})
+        elif method == "tools/list":
+            send({"jsonrpc": "2.0", "id": ident, "result": {"tools": [SETUP_TOOL]}})
+        elif method == "tools/call" and (message.get("params") or {}).get("name") == "setup":
+            report = readiness()
+            if report["ready"] and "Run /reload-plugins" not in " ".join(report["nextSteps"]):
+                report["nextSteps"].append("Run /reload-plugins so Claude Code starts the bridge.")
+            send({"jsonrpc": "2.0", "id": ident, "result": {
+                "content": [{"type": "text", "text": json.dumps(report, indent=2)}], "isError": not report["ready"]}})
+        else:
+            send({"jsonrpc": "2.0", "id": ident, "error": {"code": -32601, "message": f"unknown method {method}"}})
+    return 0
+
+
 def serve() -> int:
-    # Building takes longer than a host waits for a server to start, so only setup builds.
+    # Building takes longer than a host waits for a server to start, so never build here.
     if not _env_ready():
-        print("brainstem-mcp is not set up yet: run /brainstem:setup, then /reload-plugins.", file=sys.stderr)
-        return 1
+        return setup_server()
     command = [str(_env_python()), str(HERE / "mcp_server.py"), *sys.argv[1:]]
     if os.name == "nt":
         return subprocess.call(command)

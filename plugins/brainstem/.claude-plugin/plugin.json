@@ -1,6 +1,6 @@
 {
   "name": "brainstem",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Talk to your local RAPP Brainstem from Claude Code: chat with it, continue conversations, see what it can do.",
   "author": { "name": "kody-w" }
 }

@@ -23,8 +23,11 @@ Then, in Claude Code:
 ```
 
 `/brainstem:setup` checks that the Brainstem is running and signed in, and prepares the bridge
-(a small Python environment in `~/.cache/brainstem-mcp`). If it built anything, run
-`/reload-plugins` once more.
+(a small Python environment in `~/.cache/brainstem-mcp`, about a minute the first time). If it
+built anything, run `/reload-plugins` once more.
+
+Until setup has run, the plugin offers Claude a single `setup` tool, so you can also just ask
+Claude to "set up the Brainstem".
 
 ## What you get
 

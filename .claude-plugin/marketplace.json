@@ -3,13 +3,13 @@
   "owner": { "name": "kody-w" },
   "metadata": {
     "description": "Talk to your local RAPP Brainstem from Claude Code.",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "plugins": [
     {
       "name": "brainstem",
       "description": "Talk to your local RAPP Brainstem from Claude Code: chat with it, continue conversations, see what it can do.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": { "name": "kody-w" },
       "source": "./plugins/brainstem"
     }

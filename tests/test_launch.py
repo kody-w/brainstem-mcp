@@ -56,8 +56,21 @@ def test_unreachable_url_is_reported(launch, monkeypatch):
     assert launch._brainstem() == {"reachable": False, "url": "http://127.0.0.1:1"}
 
 
-def test_serve_never_builds_it_says_to_run_setup(launch, monkeypatch, capsys):
+def test_serve_before_setup_speaks_mcp_with_one_setup_tool(launch, monkeypatch, capsys):
+    import io
     monkeypatch.setattr(launch, "_env_ready", lambda: False)
     monkeypatch.setattr(launch, "_build_env", lambda log: pytest.fail("serve must not build"))
-    assert launch.serve() == 1
-    assert "/brainstem:setup" in capsys.readouterr().err
+    monkeypatch.setattr(launch, "readiness", lambda: {"ready": True, "nextSteps": []})
+    requests = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2099-01-01"}},
+                {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+                {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "setup", "arguments": {}}},
+                {"jsonrpc": "2.0", "id": 4, "method": "resources/list"}]
+    monkeypatch.setattr(launch.sys, "stdin", io.StringIO("\n".join(json.dumps(r) for r in requests) + "\n"))
+    assert launch.serve() == 0
+    replies = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [r["id"] for r in replies] == [1, 2, 3, 4]
+    assert replies[0]["result"]["protocolVersion"] == "2099-01-01"
+    assert [t["name"] for t in replies[1]["result"]["tools"]] == ["setup"]
+    assert "/reload-plugins" in replies[2]["result"]["content"][0]["text"] and not replies[2]["result"]["isError"]
+    assert replies[3]["error"]["code"] == -32601
