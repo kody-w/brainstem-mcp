@@ -5,6 +5,12 @@ Talk to your local [RAPP Brainstem](https://github.com/kody-w/rapp-installer) fr
 Built on top of the Brainstem, never inside it: this repo only talks to a Brainstem you already
 installed, over its normal `/chat` and `/health`.
 
+**Use `/chat` directly when you can.** Anything that can make an HTTP call should send
+`POST /chat` to the Brainstem itself. This bridge is for hosts that can only speak MCP. Going
+through a host costs the host's own context on every model call: in token-bench, the same
+business questions cost about 6-13k tokens a turn through `/chat` and 76-162k a turn through
+Copilot CLI and this bridge.
+
 ## Install
 
 You need a running Brainstem first:
