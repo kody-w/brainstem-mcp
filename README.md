@@ -7,7 +7,8 @@ installed, over its normal `/chat` and `/health`.
 
 **Use `/chat` directly when you can.** Anything that can make an HTTP call should send
 `POST /chat` to the Brainstem itself. This bridge is for hosts that can only speak MCP. Going
-through a host costs the host's own context on every model call: in token-bench, the same
+through a host costs the host's own context on every model call: in
+[token-bench](https://github.com/kody-w/token-bench) ([The Context Tax](https://kody-w.github.io/token-bench/)), the same
 business questions cost about 6-13k tokens a turn through `/chat` and 76-162k a turn through
 Copilot CLI and this bridge.
 
