@@ -41,6 +41,10 @@ Three tools Claude Code can call:
 
 If the Brainstem is down or refuses a message, the call fails with a plain explanation.
 
+At startup the bridge reads the Brainstem's loaded agents and names them in the `chat` tool's
+description, so the host can see which requests to hand over instead of doing the work itself.
+Agents loaded later appear after the host restarts the bridge.
+
 ## Settings
 
 | Variable | Default | Use |

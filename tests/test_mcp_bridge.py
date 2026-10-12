@@ -152,3 +152,45 @@ def test_finished_jobs_are_bounded(bridge, monkeypatch):
         bridge.chat("task", session_id=f"j{n}", wait=False)
         wait_for_job(bridge, f"j{n}")
     assert sorted(bridge._jobs) == ["j2", "j3"]
+
+
+def test_the_host_is_told_which_agents_the_brainstem_runs(bridge, monkeypatch):
+    # Without the agent names a host cannot tell what the Brainstem is for, and does the work itself.
+    health = {"agents": ["BasicAgent", "Commission", "LateFees", "ManageMemory", "ContextMemory"]}
+    monkeypatch.setattr(bridge.requests, "get", lambda url, headers=None, timeout=None: Reply(200, health))
+    agents = bridge._loaded_agents()
+    assert agents == ["Commission", "LateFees"]
+    sentence = bridge._agents_sentence(agents)
+    assert "Its agents: Commission, LateFees." in sentence and "instead of doing the work yourself" in sentence
+    assert bridge._agents_sentence([]) == ""
+
+
+def test_an_unreachable_brainstem_keeps_the_generic_description(bridge, monkeypatch):
+    def down(*args, **kwargs):
+        raise bridge.requests.ConnectionError("refused")
+
+    monkeypatch.setattr(bridge.requests, "get", down)
+    assert bridge._loaded_agents() == []
+    monkeypatch.setattr(bridge.requests, "get", lambda *a, **k: Reply(200, ValueError("not json")))
+    assert bridge._loaded_agents() == []
+
+
+def test_the_host_is_told_which_agents_the_brainstem_runs(bridge, monkeypatch):
+    # A host only hands work to the Brainstem when it can see what the Brainstem is for.
+    health = {"agents": ["BasicAgent", "Commission", "LateFees", "ManageMemory", "ContextMemory"]}
+    monkeypatch.setattr(bridge.requests, "get", lambda url, headers=None, timeout=None: Reply(200, health))
+    agents = bridge._loaded_agents()
+    assert agents == ["Commission", "LateFees"]
+    sentence = bridge._agents_sentence(agents)
+    assert "Its agents: Commission, LateFees." in sentence and "instead of doing the work yourself" in sentence
+    assert bridge._agents_sentence([]) == ""
+
+
+def test_an_unreachable_brainstem_keeps_the_generic_description(bridge, monkeypatch):
+    def down(*args, **kwargs):
+        raise bridge.requests.ConnectionError("refused")
+
+    monkeypatch.setattr(bridge.requests, "get", down)
+    assert bridge._loaded_agents() == []
+    monkeypatch.setattr(bridge.requests, "get", lambda *args, **kwargs: Reply(200, ValueError("not json")))
+    assert bridge._loaded_agents() == []
