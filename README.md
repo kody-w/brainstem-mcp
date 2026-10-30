@@ -158,6 +158,10 @@ again on every call. `python -m brainstem_mcp.distro check distro.json` says whi
 `python -m brainstem_mcp.distro pin distro.json` writes their current checksums. `--distro` and
 `--agents` work together: the distro's agents come first.
 
+Keep pinned files byte-exact in git: put `agents/*.py -text` in the distro repo's `.gitattributes`.
+Without it, a Windows checkout turns line endings into CRLF, the checksums change, and the files are
+refused.
+
 Tool names follow one rule in both: letters, digits, `_` and `-`, at most 64 characters. `chat`,
 `job_status`, `capabilities` and `setup` belong to the Brainstem, so no agent tool takes them.
 
