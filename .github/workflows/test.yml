@@ -16,7 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install "mcp>=2.0,<3" "requests>=2.31" pytest
+      # Install the way any MCP app's users do, so the brainstem-mcp command is tested too (CI requires it).
+      - run: python -m pip install . pytest
       - run: python -m pytest -q
 
   grail-contract:
