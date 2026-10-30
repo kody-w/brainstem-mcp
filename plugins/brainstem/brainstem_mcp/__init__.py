@@ -9,7 +9,7 @@ RESERVED name: those belong to the Brainstem itself (setup is the one tool offer
 """
 import re
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 TOOL_NAME = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 RESERVED_TOOL_NAMES = frozenset({"chat", "job_status", "capabilities", "setup"})

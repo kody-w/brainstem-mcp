@@ -143,7 +143,7 @@ def test_the_console_script_is_declared_and_points_at_the_cli():
     tomllib = pytest.importorskip("tomllib")
     project = tomllib.loads((REPO / "pyproject.toml").read_text())["project"]
     assert project["scripts"] == {"brainstem-mcp": "brainstem_mcp.server:cli"}
-    assert set(project["dependencies"]) == {"mcp>=2.0,<3", "requests>=2.31"}
+    assert set(project["dependencies"]) == {"mcp>=2.3,<3", "requests>=2.31"}
     assert not any("rappmcp" in dependency for dependency in project["dependencies"])
     plugin = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     sys.path.insert(0, str(PLUGIN))
@@ -161,9 +161,9 @@ def test_help_and_version_answer_without_starting_a_server():
     assert run_cli("--version").stdout.strip().startswith("brainstem-mcp 0.")
 
 
-def test_agents_flag_is_reserved_and_says_it_is_not_here_yet():
-    done = run_cli("--agents")
-    assert done.returncode == 2 and "not available yet" in done.stderr and done.stdout == ""
+def test_help_names_the_agents_and_distro_flags():
+    usage = run_cli("--help").stdout
+    assert "--agents [DIR]" in usage and "--distro MANIFEST" in usage
 
 
 def test_the_base_tools_follow_the_naming_rule_agent_tools_will_share():
