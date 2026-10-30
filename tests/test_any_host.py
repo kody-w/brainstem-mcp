@@ -131,6 +131,7 @@ def test_every_start_command_serves_the_same_three_tools_and_answers(label, brai
                           tmp_path if "launch.py" in label else None)
     assert [tool["name"] for tool in tools] == ["chat", "job_status", "capabilities"]
     assert {tool["name"]: shape(tool) for tool in tools} == SHAPES
+    assert "Its agents: Echo." in tools[0]["description"]  # the startup /health read reaches every entry point
     answer = json.loads(results[0]["result"]["content"][0]["text"])
     assert answer["response"] == "echo: hello" and answer["session_id"] == "h1"
     assert FakeBrainstem.seen[0] == {"path": "/chat", "body": {

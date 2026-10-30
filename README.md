@@ -6,6 +6,13 @@ or any other MCP app.
 Built on top of the Brainstem, never inside it: this repo only talks to a Brainstem you already
 installed, over its normal `/chat` and `/health`.
 
+**Use `/chat` directly when you can.** Anything that can make an HTTP call should send
+`POST /chat` to the Brainstem itself. This bridge is for hosts that can only speak MCP. Going
+through a host costs the host's own context on every model call: in
+[token-bench](https://github.com/kody-w/token-bench) ([The Context Tax](https://kody-w.github.io/token-bench/)), the same
+business questions cost about 6-13k tokens a turn through `/chat` and 76-162k a turn through
+Copilot CLI and this bridge.
+
 ## Install
 
 You need a running Brainstem first:
@@ -80,6 +87,10 @@ Three tools any MCP app can call:
 | `capabilities` | The Brainstem's status, version, model and loaded agents. |
 
 If the Brainstem is down or refuses a message, the call fails with a plain explanation.
+
+At startup the bridge reads the Brainstem's loaded agents and names them in the `chat` tool's
+description, so the host can see which requests to hand over instead of doing the work itself.
+Agents loaded later appear after the host restarts the bridge.
 
 ## Settings
 

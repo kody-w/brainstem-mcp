@@ -48,12 +48,22 @@ _busy: set[str] = set()
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
 
-mcp = MCPServer(
-    "ai-brainstem",
-    instructions=("A local AI Brainstem. Call `chat` in plain language; it chooses its own agents, "
-                  "including its twins (use their names). Reuse `session_id` to continue a conversation. "
-                  "For work that may take minutes, call `chat` with wait=false and poll `job_status`."),
-)
+
+def _loaded_agents() -> list[str]:
+    """The agents the Brainstem has loaded right now, read once at startup. A host only hands work to
+    the Brainstem when it can see what the Brainstem is for; an empty list keeps the generic wording."""
+    try:
+        agents = requests.get(f"{BRAINSTEM_URL}/health", headers=_headers(), timeout=3).json().get("agents") or []
+    except Exception:
+        return []
+    return [a for a in agents if isinstance(a, str) and a not in ("BasicAgent", "ContextMemory", "ManageMemory")]
+
+
+def _agents_sentence(agents: list[str]) -> str:
+    if not agents:
+        return ""
+    return (f" Its agents: {', '.join(agents)}. When a request matches one of them, send it to `chat` "
+            "instead of doing the work yourself: the agent runs it as code and returns only the answer.")
 
 
 def _headers() -> dict:
@@ -61,6 +71,16 @@ def _headers() -> dict:
     if BRAINSTEM_SECRET:
         headers["X-Brainstem-Secret"] = BRAINSTEM_SECRET
     return headers
+
+
+AGENTS = _loaded_agents()
+mcp = MCPServer(
+    "ai-brainstem",
+    instructions=("A local AI Brainstem. Call `chat` in plain language; it chooses its own agents, "
+                  "including its twins (use their names)." + _agents_sentence(AGENTS) +
+                  " Reuse `session_id` to continue a conversation. "
+                  "For work that may take minutes, call `chat` with wait=false and poll `job_status`."),
+)
 
 
 def _call(method: str, path: str, timeout: float, **kwargs) -> dict:
@@ -137,13 +157,16 @@ def _run_job(user_input: str, session_id: str) -> None:
         _busy.discard(session_id)
 
 
-@mcp.tool()
+CHAT_DESCRIPTION = ("Send one message to the AI Brainstem and return its answer as JSON:\n"
+                    "response, session_id, model, agent_logs (the agents it used)." + _agents_sentence(AGENTS) + "\n"
+                    "A failure is returned as a tool error with a plain explanation. Pass the returned session_id "
+                    "to continue the conversation.\nwait=false: for work that may take minutes. Returns "
+                    "{status: running, session_id} at once; poll job_status(session_id) for the answer. "
+                    "One message at a time per session.")
+
+
+@mcp.tool(description=CHAT_DESCRIPTION)
 def chat(user_input: str, session_id: str | None = None, wait: bool = True) -> str:
-    """Send one message to the AI Brainstem and return its answer as JSON:
-    response, session_id, model, agent_logs (the agents it used). A failure is returned as a
-    tool error with a plain explanation. Pass the returned session_id to continue the conversation.
-    wait=false: for work that may take minutes. Returns {status: running, session_id} at once;
-    poll job_status(session_id) for the answer. One message at a time per session."""
     session_id = session_id or f"mcp-{uuid.uuid4().hex[:12]}"
     _claim(session_id)
     if not wait:
