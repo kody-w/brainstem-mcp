@@ -27,7 +27,8 @@ def anyio_backend():
 
 
 def server_env(extra=None):
-    return {"PYTHONPATH": str(ROOT), "BRAINSTEM_URL": "http://127.0.0.1:1", **(extra or {})}
+    """The full environment (Windows needs SYSTEMROOT to open a socket), pointed at no Brainstem."""
+    return {**os.environ, "PYTHONPATH": str(ROOT), "BRAINSTEM_URL": "http://127.0.0.1:1", **(extra or {})}
 
 
 @asynccontextmanager
