@@ -244,3 +244,22 @@ def test_a_missing_agents_folder_stops_the_start_with_a_plain_reason(tmp_path):
                           env=server_env(), cwd=str(REPO), capture_output=True, text=True, timeout=60,
                           stdin=subprocess.DEVNULL)
     assert done.returncode == 2 and "does not exist" in done.stderr and done.stdout == ""
+
+
+@pytest.mark.anyio
+async def test_a_distro_can_list_its_base_tools_after_the_agents(tmp_path):
+    """A distro alias (RAPPMCP) keeps its old order: agent tools first, its own extra tool last."""
+    from brainstem_mcp.engine import BaseTools, Engine
+    import mcp_types as types
+
+    class Extra(BaseTools):
+        names = frozenset({"extra"})
+
+        async def tools(self):
+            return [types.Tool(name="extra", description="x", input_schema={"type": "object"})]
+
+    shutil.copy(EXAMPLES / "echo_agent.py", tmp_path / "echo_agent.py")
+    for first, order in ((True, ["extra", "Echo"]), (False, ["Echo", "extra"])):
+        engine = Engine(tmp_path, base=Extra(), base_first=first)
+        await engine.scan()
+        assert [t.name for t in await engine.listed()] == order

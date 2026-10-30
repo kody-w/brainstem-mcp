@@ -189,7 +189,7 @@ class Engine:
     """Serve a folder, a file, a distro manifest, or a distro plus a folder."""
 
     def __init__(self, target=None, timeout=120.0, poll=1.0, scan_timeout=SCAN_TIMEOUT, distro=None,
-                 base=None, name="brainstem-mcp", version="", stopped_by="brainstem-mcp"):
+                 base=None, name="brainstem-mcp", version="", stopped_by="brainstem-mcp", base_first=True):
         self.target = pathlib.Path(target).expanduser().resolve() if target is not None else None
         if self.target is not None and not self.target.exists():
             raise FileNotFoundError(f"{self.target} does not exist")
@@ -207,6 +207,7 @@ class Engine:
         self.name = name
         self.version = version
         self.stopped_by = stopped_by
+        self.base_first = base_first  # base tools before the agent tools (False: after them)
         self.ready = asyncio.Event()  # set once the first scan is done
         self.tools = []
         self.report = {}
@@ -298,7 +299,8 @@ class Engine:
         return "\n\n".join(parts) or None
 
     async def listed(self):
-        return list(await self.base.tools()) + [_tool(t) for t in self.tools]
+        base, agents = list(await self.base.tools()), [_tool(t) for t in self.tools]
+        return base + agents if self.base_first else agents + base
 
     async def call(self, name, arguments):
         """Returns (failed, text, structured) for an agent tool."""
