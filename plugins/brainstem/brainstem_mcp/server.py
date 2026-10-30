@@ -16,6 +16,8 @@ Ways to start it (stdio unless --http):
     python plugins/brainstem/mcp_server.py   the old entry point, kept working
     python plugins/brainstem/launch.py       what the Claude Code plugin runs (builds its own environment)
     brainstem-mcp --http 7072                streamable HTTP instead of stdio
+    brainstem-mcp --agents [DIR]             also one tool per agent in the Brainstem's agents folder (engine.py)
+    brainstem-mcp --distro distro.json       also one tool per agent a distro pins by sha256 (distro.py)
 Environment:  BRAINSTEM_URL (default http://127.0.0.1:7071), BRAINSTEM_SECRET (LAN mode only),
               BRAINSTEM_MCP_TIMEOUT (seconds a waiting chat waits, default 240),
               BRAINSTEM_MCP_JOB_TIMEOUT (seconds a background chat may run, default 3600).
@@ -205,20 +207,90 @@ def capabilities() -> str:
 
 
 USAGE = """usage: brainstem-mcp [--http PORT]
+       brainstem-mcp --agents [DIR] [--distro MANIFEST] [--timeout S] [--scan-timeout S] [--kernel PATH]
+       brainstem-mcp --distro MANIFEST [...]
 
 Serve your local AI Brainstem as an MCP server: chat, job_status, capabilities.
 It talks only to the Brainstem's own /chat and /health at BRAINSTEM_URL (default http://127.0.0.1:7071).
 
-  (no options)   stdio, what every MCP host starts
-  --http PORT    streamable HTTP on 127.0.0.1:PORT instead (BRAINSTEM_MCP_HOST changes the address)
-  --version      print the version
+  (no options)        stdio, what every MCP host starts
+  --http PORT         streamable HTTP on 127.0.0.1:PORT instead (BRAINSTEM_MCP_HOST changes the address)
+  --agents [DIR]      also serve each agent in your Brainstem's agents folder as its own tool
+                      (default ~/.brainstem/src/rapp_brainstem/agents). Each call runs in its own
+                      short-lived process with a timeout. The tool list follows the folder.
+  --distro MANIFEST   also serve a distro: a kernel pin plus agent files pinned by sha256. A file
+                      whose bytes do not match its pin is refused.
+  --timeout S         seconds one agent call may run before it is stopped (default 120)
+  --scan-timeout S    seconds one agent file may take to load before it is skipped (default 10)
+  --kernel PATH       use this basic_agent.py instead of the pinned one
+  --version           print the version
 """
 
-# TODO(next step): --agents will also serve each agent in the Brainstem's agents/ folder as its own tool, and
-# later "agents/ plus a distro manifest" (a kernel pin plus agent.py files pinned by sha256). The engine lands
-# in this package; brainstem_mcp/__init__.py holds the naming rule it must follow.
-AGENTS_NOT_YET = ("brainstem-mcp: --agents is not available yet. It will serve each agent in your Brainstem's "
-                  "agents folder as its own tool. For now, use chat: the Brainstem picks its own agents.")
+DEFAULT_AGENTS = "~/.brainstem/src/rapp_brainstem/agents"
+
+
+def _agent_options(argv: list[str]):
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="brainstem-mcp", add_help=False)
+    parser.add_argument("--agents", nargs="?", const=DEFAULT_AGENTS, default=None)
+    parser.add_argument("--distro", default=None)
+    parser.add_argument("--timeout", type=float, default=float(os.getenv("BRAINSTEM_MCP_CALL_TIMEOUT", "120")))
+    parser.add_argument("--scan-timeout", type=float, default=float(os.getenv("BRAINSTEM_MCP_SCAN_TIMEOUT", "10")))
+    parser.add_argument("--kernel", default=None)
+    parser.add_argument("--poll", type=float, default=1.0)
+    return parser.parse_args(argv)
+
+
+def serve_agents(argv: list[str]) -> int:
+    """chat, job_status and capabilities, plus one tool per agent file, over stdio."""
+    if "--http" in argv:
+        print("brainstem-mcp: --agents and --distro serve over stdio only, for now.", file=sys.stderr)
+        return 2
+    try:
+        options = _agent_options(argv)
+    except SystemExit:
+        print(USAGE, end="", file=sys.stderr)
+        return 2
+    sys.dont_write_bytecode = True  # never write into the kernel install or the agents' folder
+    if options.kernel:
+        os.environ["BRAINSTEM_MCP_KERNEL"] = os.path.abspath(os.path.expanduser(options.kernel))
+    import anyio
+    import mcp_types as types
+
+    from brainstem_mcp import engine
+    from brainstem_mcp.distro import DistroError
+    from mcp.shared.exceptions import MCPError
+
+    class BrainstemTools(engine.BaseTools):
+        names = frozenset({"chat", "job_status", "capabilities"})
+        instructions = mcp.instructions
+
+        async def tools(self):
+            return await mcp.list_tools()
+
+        async def call(self, name, arguments):
+            try:
+                return await mcp.call_tool(name, arguments)
+            except MCPError:
+                raise
+            except Exception as error:  # ToolError and the rest: a failed call in plain words
+                return types.CallToolResult(content=[types.TextContent(text=str(error))], is_error=True)
+
+    try:
+        served = engine.Engine(
+            os.path.expanduser(options.agents) if options.agents else None,
+            timeout=options.timeout, poll=options.poll, scan_timeout=options.scan_timeout,
+            distro=options.distro, base=BrainstemTools(), name="ai-brainstem", version=__version__,
+        )
+    except (FileNotFoundError, DistroError, ValueError) as error:
+        print(f"brainstem-mcp: {error}", file=sys.stderr)
+        return 2
+    try:
+        anyio.run(engine.serve_stdio, served)
+    except KeyboardInterrupt:
+        pass
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -228,9 +300,8 @@ def main(argv: list[str]) -> int:
     if "--version" in argv:
         print(f"brainstem-mcp {__version__}")
         return 0
-    if "--agents" in argv:
-        print(AGENTS_NOT_YET, file=sys.stderr)
-        return 2
+    if "--agents" in argv or "--distro" in argv:
+        return serve_agents(argv)
     if "--http" in argv:
         index = argv.index("--http")
         port = int(argv[index + 1]) if len(argv) > index + 1 else 7072

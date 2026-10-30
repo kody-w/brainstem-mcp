@@ -24,7 +24,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 HOME = Path(os.getenv("BRAINSTEM_MCP_HOME") or Path.home() / ".cache" / "brainstem-mcp")
 ENV = HOME / "venv"
-REQUIREMENTS = ["mcp>=2.0,<3", "requests>=2.31"]
+REQUIREMENTS = ["mcp>=2.3,<3", "requests>=2.31"]
 MIN_PYTHON = (3, 10)
 BRAINSTEM_URL = (os.getenv("BRAINSTEM_URL") or "http://127.0.0.1:7071").rstrip("/")
 INSTALL_HINT = "curl -fsSL https://kody-w.github.io/rapp-installer/install.sh | bash"
