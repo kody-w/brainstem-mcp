@@ -1,0 +1,26 @@
+[build-system]
+requires = ["uv_build>=0.11.14,<0.12"]
+build-backend = "uv_build"
+
+[project]
+name = "brainstem-mcp"
+version = "0.3.0"
+description = "Your local RAPP Brainstem as an MCP server, for any MCP host."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = ["mcp>=2.0,<3", "requests>=2.31"]
+
+[project.scripts]
+brainstem-mcp = "brainstem_mcp.server:cli"
+
+[project.urls]
+Homepage = "https://github.com/kody-w/brainstem-mcp"
+
+[tool.uv.build-backend]
+# The package lives inside the Claude Code plugin folder, so the plugin and the pip install ship one copy.
+module-name = "brainstem_mcp"
+module-root = "plugins/brainstem"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
